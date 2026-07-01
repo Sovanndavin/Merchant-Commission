@@ -8,11 +8,11 @@ type AppScreen = "store-profile" | "merchant-commission";
 
 const screens: Array<{ id: AppScreen; label: string; path: string }> = [
   { id: "store-profile", label: "Store Profile", path: "#/store-profile" },
-  { id: "merchant-commission", label: "Merchant Commission", path: "#/merchant-commission" }
+  { id: "merchant-commission", label: "Merchant Commission", path: "#/merchant-commission/main-commission" }
 ];
 
 function screenFromHash(): AppScreen {
-  return window.location.hash === "#/merchant-commission" ? "merchant-commission" : "store-profile";
+  return window.location.hash.startsWith("#/merchant-commission") ? "merchant-commission" : "store-profile";
 }
 
 export function UnifiedApp() {

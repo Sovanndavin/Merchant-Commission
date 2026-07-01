@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { calculateCommissionPreview } from "@/lib/commission";
 import { sampleOrderItems } from "@/lib/data";
 import type {
@@ -70,6 +70,25 @@ const merchantProfileTabs = [
   "Performance",
   "User & Device"
 ];
+
+const commissionJourneyTabs: Array<{ id: Tab; label: string; slug: string }> = [
+  { id: "main", label: "Main Commission", slug: "main-commission" },
+  { id: "shops", label: "Shop Commission", slug: "shop-commission" },
+  { id: "categories", label: "Category Rules", slug: "category-rules" },
+  { id: "products", label: "Product Rules", slug: "product-rules" },
+  { id: "preview", label: "Preview", slug: "preview" },
+  { id: "history", label: "History", slug: "history" }
+];
+
+function tabFromHash(): Tab {
+  const slug = window.location.hash.replace("#/merchant-commission", "").replace(/^\/+/, "");
+  return commissionJourneyTabs.find((tab) => tab.slug === slug)?.id ?? "main";
+}
+
+function hashForTab(tab: Tab) {
+  const slug = commissionJourneyTabs.find((item) => item.id === tab)?.slug ?? "main-commission";
+  return `#/merchant-commission/${slug}`;
+}
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -249,6 +268,32 @@ export function CommissionDashboard({
   const managedShopCategoryRules = currentCategoryRules.filter((rule) => rule.shopId === managedShop?.shopId);
   const managedShopProductRules = currentProductRules.filter((rule) => rule.shopId === managedShop?.shopId);
 
+  useEffect(() => {
+    function syncJourneyFromUrl() {
+      if (window.location.hash.startsWith("#/merchant-commission")) {
+        setActiveTab(tabFromHash());
+      }
+    }
+
+    if (window.location.hash === "#/merchant-commission") {
+      window.history.replaceState(null, "", hashForTab("main"));
+    }
+
+    syncJourneyFromUrl();
+
+    window.addEventListener("hashchange", syncJourneyFromUrl);
+    return () => window.removeEventListener("hashchange", syncJourneyFromUrl);
+  }, []);
+
+  function openJourneyTab(tab: Tab) {
+    setActiveTab(tab);
+
+    const nextHash = hashForTab(tab);
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
+  }
+
   function openRuleDrawer(type: Exclude<RuleDrawerType, null>) {
     setIsCreatingMerchant(false);
     setIsManagingStores(false);
@@ -301,7 +346,7 @@ export function CommissionDashboard({
 
   function closeManageStorePage() {
     setIsManagingStores(false);
-    setActiveTab("shops");
+    openJourneyTab("shops");
   }
 
   function openAddTierPage() {
@@ -322,7 +367,7 @@ export function CommissionDashboard({
 
   function closeAddTierPage() {
     setIsAddingTier(false);
-    setActiveTab("main");
+    openJourneyTab("main");
   }
 
   function addInlineTierRule() {
@@ -454,7 +499,7 @@ export function CommissionDashboard({
     setSelectedMerchantId(merchantId);
     setSelectedShopId(shopId);
     setDefaultCommissionType(createdMerchant.defaultValueType);
-    setActiveTab("main");
+    openJourneyTab("main");
     setIsCreatingMerchant(false);
   }
 
@@ -523,7 +568,7 @@ export function CommissionDashboard({
     setSelectedMerchantId(merchantId);
     setSelectedShopId(firstShopId);
     setDefaultCommissionType(merchant.defaultValueType);
-    setActiveTab("main");
+    openJourneyTab("main");
     setIsCreatingMerchant(false);
     setIsManagingStores(false);
     setIsAddingTier(false);
@@ -1495,19 +1540,12 @@ export function CommissionDashboard({
           </div>
 
           <div className="tabs" role="tablist" aria-label="Commission editor tabs">
-            {[
-              ["main", "Main Commission"],
-              ["shops", "Shop Commission"],
-              ["categories", "Category Rules"],
-              ["products", "Product Rules"],
-              ["preview", "Preview"],
-              ["history", "History"]
-            ].map(([key, label]) => (
+            {commissionJourneyTabs.map(({ id, label }) => (
               <button
-                aria-selected={activeTab === key}
-                className={activeTab === key ? "tab active" : "tab"}
-                key={key}
-                onClick={() => setActiveTab(key as Tab)}
+                aria-selected={activeTab === id}
+                className={activeTab === id ? "tab active" : "tab"}
+                key={id}
+                onClick={() => openJourneyTab(id)}
                 role="tab"
                 type="button"
               >
@@ -1764,7 +1802,7 @@ export function CommissionDashboard({
                                     type="button"
                                     onClick={() => {
                                       setSelectedShopId(shop.shopId);
-                                      setActiveTab("preview");
+                                      openJourneyTab("preview");
                                       void refreshPreview(shop.shopId);
                                     }}
                                   >
