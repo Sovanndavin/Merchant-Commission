@@ -45,20 +45,36 @@ type LocalTierRule = {
   effectiveDate: string;
   note: string;
 };
+type CommissionPeriod = {
+  id: number;
+  startDate: string;
+  endDate: string;
+  rate: string;
+};
+type CommissionRateTier = {
+  id: number;
+  amountFrom: string;
+  rate: string;
+};
 type DisplayRule = CategoryRule | ProductRule | LocalCategoryRule | LocalProductRule;
 
 const categoryOptions = [
   { id: "c-salmon", name: "Salmon Tek Sab" },
   { id: "c-trout-au", name: "Trout Australi" },
   { id: "c-trout-bkk", name: "Trout BKK" },
-  { id: "c-seafood", name: "Seafood Premium" }
+  { id: "c-seafood", name: "Seafood Premium" },
+  { id: "c-electronics", name: "Electronics" }
 ];
 
 const productOptions = [
   { id: "p-salmon-tek-sab", name: "Salmon Tek Sab", categoryId: "c-salmon" },
   { id: "p-trout-au", name: "Trout Australi", categoryId: "c-trout-au" },
   { id: "p-trout-bkk-1kg", name: "Trout BKK 1Kg", categoryId: "c-trout-bkk" },
-  { id: "p-seafood-box", name: "Seafood Premium Box", categoryId: "c-seafood" }
+  { id: "p-seafood-box", name: "Seafood Premium Box", categoryId: "c-seafood" },
+  { id: "p-iphone", name: "iPhone", categoryId: "c-electronics" },
+  { id: "p-phone-yellow", name: "Phone Yellow - $1000", categoryId: "c-electronics" },
+  { id: "p-phone-black", name: "Phone Black - $1500", categoryId: "c-electronics" },
+  { id: "p-laptop", name: "Laptop", categoryId: "c-electronics" }
 ];
 
 const merchantProfileTabs = [
@@ -73,7 +89,7 @@ const merchantProfileTabs = [
 
 const commissionJourneyTabs: Array<{ id: Tab; label: string; slug: string }> = [
   { id: "main", label: "Main Commission", slug: "main-commission" },
-  { id: "shops", label: "Shop Commission", slug: "shop-commission" },
+  { id: "shops", label: "Store Commission", slug: "store-commission" },
   { id: "categories", label: "Category Rules", slug: "category-rules" },
   { id: "products", label: "Product Rules", slug: "product-rules" },
   { id: "preview", label: "Preview", slug: "preview" },
@@ -96,6 +112,16 @@ const currency = new Intl.NumberFormat("en-US", {
 });
 
 const number = new Intl.NumberFormat("en-US");
+
+const defaultCommissionTypeOptions: Array<{ value: CommissionValueType; label: string }> = [
+  { value: "percentage", label: "Percentage" },
+  { value: "fixed_amount", label: "Fixed Amount" }
+];
+
+const weightCommissionTypeOption: { value: CommissionValueType; label: string } = {
+  value: "amount_per_kg",
+  label: "Amount per Kg"
+};
 
 function formatCurrency(value: number) {
   return currency.format(value);
@@ -127,6 +153,196 @@ function formatCommissionType(type: string) {
   }
 
   return "Percentage";
+}
+
+function canUseAmountPerKg(productId: string, categoryId: string) {
+  return productId === "p-trout-bkk-1kg" || categoryId === "c-trout-bkk";
+}
+
+function getCommissionTypeOptions(productId: string, categoryId: string) {
+  if (canUseAmountPerKg(productId, categoryId)) {
+    return [...defaultCommissionTypeOptions, weightCommissionTypeOption];
+  }
+
+  return defaultCommissionTypeOptions;
+}
+
+function getProductRuleSuggestion(productId: string, categoryId: string) {
+  if (productId === "p-phone-yellow") {
+    return {
+      valueType: "fixed_amount" as CommissionValueType,
+      value: "50",
+      label: "$50",
+      reason: "For a yellow phone priced at $1000, a $50 fixed commission equals about 5% and keeps the rule simple."
+    };
+  }
+
+  if (productId === "p-phone-black") {
+    return {
+      valueType: "fixed_amount" as CommissionValueType,
+      value: "75",
+      label: "$75",
+      reason: "For a black phone priced at $1500, a $75 fixed commission keeps the same 5% commission logic."
+    };
+  }
+
+  if (productId === "p-iphone") {
+    return {
+      valueType: "percentage" as CommissionValueType,
+      value: "5",
+      label: "5%",
+      reason: "iPhone is a high-value electronics item, so a lower percentage keeps the merchant payout competitive."
+    };
+  }
+
+  if (productId === "p-laptop") {
+    return {
+      valueType: "fixed_amount" as CommissionValueType,
+      value: "15",
+      label: "$15",
+      reason: "Laptop prices can vary widely, so a fixed commission gives Red Ant predictable earnings per order."
+    };
+  }
+
+  if (productId === "p-trout-bkk-1kg" || categoryId === "c-trout-bkk") {
+    return {
+      valueType: "amount_per_kg" as CommissionValueType,
+      value: "1",
+      label: "$1 / kg",
+      reason: "Best for weight-based seafood items where commission should follow kilogram quantity."
+    };
+  }
+
+  if (categoryId === "c-trout-au") {
+    return {
+      valueType: "percentage" as CommissionValueType,
+      value: "25",
+      label: "25%",
+      reason: "Premium imported trout can use a stronger percentage rule than the merchant default."
+    };
+  }
+
+  if (categoryId === "c-seafood") {
+    return {
+      valueType: "fixed_amount" as CommissionValueType,
+      value: "2.5",
+      label: "$2.50",
+      reason: "Fixed amount is easier to control for bundled seafood boxes and e-commerce items."
+    };
+  }
+
+  if (categoryId === "c-electronics") {
+    return {
+      valueType: "percentage" as CommissionValueType,
+      value: "6",
+      label: "6%",
+      reason: "Electronics usually need a lower commission rate because item prices are higher than food products."
+    };
+  }
+
+  return {
+    valueType: "percentage" as CommissionValueType,
+    value: "15",
+    label: "15%",
+    reason: "Use the merchant default style for standard products unless this product needs a special override."
+  };
+}
+
+function getProductRuleSuggestions(productId: string, categoryId: string) {
+  const primary = getProductRuleSuggestion(productId, categoryId);
+  const suggestions = [
+    {
+      ...primary,
+      title: "Best Fit",
+      tone: "recommended",
+      detail: "Recommended for this selected product."
+    }
+  ];
+
+  if (productId === "p-phone-yellow") {
+    suggestions.push({
+      valueType: "percentage" as CommissionValueType,
+      value: "5",
+      label: "5%",
+      title: "Percentage Option",
+      tone: "standard",
+      detail: "Use when the merchant wants the rule to follow product price changes.",
+      reason: "5% of the $1000 yellow phone price equals the same $50 commission."
+    });
+  } else if (productId === "p-phone-black") {
+    suggestions.push({
+      valueType: "percentage" as CommissionValueType,
+      value: "5",
+      label: "5%",
+      title: "Percentage Option",
+      tone: "standard",
+      detail: "Use when the merchant wants the rule to follow product price changes.",
+      reason: "5% of the $1500 black phone price equals the same $75 commission."
+    });
+  } else if (productId === "p-iphone") {
+    suggestions.push({
+      valueType: "fixed_amount" as CommissionValueType,
+      value: "50",
+      label: "$50",
+      title: "Fixed Control",
+      tone: "standard",
+      detail: "Use when finance wants predictable earning per iPhone order.",
+      reason: "A fixed amount is easier to audit for high-value phone items."
+    });
+  } else if (productId === "p-laptop") {
+    suggestions.push({
+      valueType: "percentage" as CommissionValueType,
+      value: "4",
+      label: "4%",
+      title: "Price-Based",
+      tone: "standard",
+      detail: "Use when laptop prices differ a lot by model.",
+      reason: "A low percentage keeps commission proportional across cheaper and premium laptops."
+    });
+  } else if (canUseAmountPerKg(productId, categoryId)) {
+    suggestions.push(
+      {
+        valueType: "percentage" as CommissionValueType,
+        value: "15",
+        label: "15%",
+        title: "Simple Percentage",
+        tone: "standard",
+        detail: "Use when order amount is more reliable than quantity weight.",
+        reason: "Percentage is easier when product weight is not always entered consistently."
+      },
+      {
+        valueType: "fixed_amount" as CommissionValueType,
+        value: "1",
+        label: "$1",
+        title: "Fixed Per Item",
+        tone: "standard",
+        detail: "Use when each line item should earn the same amount.",
+        reason: "Fixed amount avoids depending on product weight."
+      }
+    );
+  } else if (categoryId === "c-electronics") {
+    suggestions.push({
+      valueType: "fixed_amount" as CommissionValueType,
+      value: "50",
+      label: "$50",
+      title: "Fixed Control",
+      tone: "standard",
+      detail: "Use for high-price electronics when finance wants predictable earning.",
+      reason: "Fixed commission avoids oversized commission on expensive products."
+    });
+  } else if (categoryId === "c-seafood") {
+    suggestions.push({
+      valueType: "percentage" as CommissionValueType,
+      value: "12",
+      label: "12%",
+      title: "Percentage Option",
+      tone: "standard",
+      detail: "Use when seafood box prices change frequently.",
+      reason: "Percentage keeps commission proportional to product price."
+    });
+  }
+
+  return suggestions;
 }
 
 function getEffectiveDate(rule: DisplayRule) {
@@ -177,6 +393,60 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function toDateInputValue(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  const [day, month, year] = value.split("-");
+  if (day && month && year) {
+    return `${year}-${month}-${day}`;
+  }
+
+  return value;
+}
+
+function getCommissionPeriodWarnings(periods: CommissionPeriod[]) {
+  const normalizedPeriods = periods.map((period, index) => ({
+    ...period,
+    index,
+    start: toDateInputValue(period.startDate),
+    end: toDateInputValue(period.endDate)
+  }));
+  const warnings: string[] = [];
+
+  normalizedPeriods.forEach((period) => {
+    if (period.start && period.end && period.start > period.end) {
+      warnings.push(`Period ${period.index + 1} end date must be after start date.`);
+    }
+  });
+
+  normalizedPeriods.forEach((period, periodIndex) => {
+    normalizedPeriods.slice(periodIndex + 1).forEach((nextPeriod) => {
+      if (period.start <= nextPeriod.end && nextPeriod.start <= period.end) {
+        warnings.push(`Period ${period.index + 1} overlaps Period ${nextPeriod.index + 1}.`);
+      }
+    });
+  });
+
+  return warnings;
+}
+
+function getCommissionTierWarnings(tiers: CommissionRateTier[]) {
+  const warnings: string[] = [];
+  const amounts = tiers.map((tier) => Number(tier.amountFrom));
+
+  amounts.forEach((amount, index) => {
+    if (Number.isNaN(amount)) {
+      warnings.push(`Tier ${index + 1} amount must be a number.`);
+    }
+
+    if (index > 0 && amount <= amounts[index - 1]) {
+      warnings.push(`Tier ${index + 1} amount must be higher than Tier ${index}.`);
+    }
+  });
+
+  return warnings;
+}
+
 export function CommissionDashboard({
   merchants,
   initialMerchantId,
@@ -188,6 +458,7 @@ export function CommissionDashboard({
   const [selectedShopId, setSelectedShopId] = useState(initialShopId);
   const [expandedShopId, setExpandedShopId] = useState("");
   const [expandedRuleKey, setExpandedRuleKey] = useState("");
+  const [openRuleActionMenu, setOpenRuleActionMenu] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("main");
   const [monthlySales, setMonthlySales] = useState(12000);
   const [preview, setPreview] = useState(initialPreview);
@@ -205,11 +476,13 @@ export function CommissionDashboard({
   const [draftShopId, setDraftShopId] = useState(initialShopId);
   const [draftCategoryId, setDraftCategoryId] = useState(categoryOptions[0].id);
   const [draftProductId, setDraftProductId] = useState(productOptions[0].id);
+  const [draftProductSearch, setDraftProductSearch] = useState("");
   const [draftValueType, setDraftValueType] = useState<CommissionValueType>("percentage");
   const [draftValue, setDraftValue] = useState("15");
   const [draftEffectiveDate, setDraftEffectiveDate] = useState(todayInputValue());
   const [draftStatus, setDraftStatus] = useState<CommissionStatus>("active");
   const [draftNote, setDraftNote] = useState("");
+  const [ruleSaveStatus, setRuleSaveStatus] = useState("");
   const [isCreatingMerchant, setIsCreatingMerchant] = useState(false);
   const [localMerchants, setLocalMerchants] = useState<MerchantCommission[]>([]);
   const [newMerchantName, setNewMerchantName] = useState("New Merchant");
@@ -233,6 +506,15 @@ export function CommissionDashboard({
   const [draftTierEffectiveDate, setDraftTierEffectiveDate] = useState(todayInputValue());
   const [draftTierStatus, setDraftTierStatus] = useState<CommissionStatus>("active");
   const [draftTierNote, setDraftTierNote] = useState("");
+  const [commissionPeriods, setCommissionPeriods] = useState<CommissionPeriod[]>([
+    { id: 1, startDate: "12-03-2026", endDate: "12-06-2026", rate: "0" },
+    { id: 2, startDate: "13-06-2026", endDate: "13-07-2026", rate: "7" }
+  ]);
+  const [commissionRateTiers, setCommissionRateTiers] = useState<CommissionRateTier[]>([
+    { id: 1, amountFrom: "0", rate: "8" },
+    { id: 2, amountFrom: "10000", rate: "12" }
+  ]);
+  const [fixedCommissionRate, setFixedCommissionRate] = useState("17.5");
 
   const displayMerchants = useMemo(() => [...merchants, ...localMerchants], [merchants, localMerchants]);
 
@@ -257,16 +539,52 @@ export function CommissionDashboard({
     .filter((tier) => !deletedTierIds.includes(tier.id))
     .map((tier) => ({ ...tier, ...tierEdits[tier.id] }))
     .sort((a, b) => a.monthlySalesFrom - b.monthlySalesFrom);
-  const managedShop =
+  const managedStore =
     selectedMerchant.shops.find((shop) => shop.shopId === managedShopId) ?? selectedMerchant.shops[0];
-  const managedCommissionType = managedShop?.useMerchantRule
+  const managedCommissionType = managedStore?.useMerchantRule
     ? selectedMerchant.defaultValueType
-    : managedShop?.defaultValueType ?? "percentage";
-  const managedCommissionValue = managedShop?.useMerchantRule
+    : managedStore?.defaultValueType ?? "percentage";
+  const managedCommissionValue = managedStore?.useMerchantRule
     ? selectedMerchant.defaultValue
-    : managedShop?.defaultValue ?? 0;
-  const managedShopCategoryRules = currentCategoryRules.filter((rule) => rule.shopId === managedShop?.shopId);
-  const managedShopProductRules = currentProductRules.filter((rule) => rule.shopId === managedShop?.shopId);
+    : managedStore?.defaultValue ?? 0;
+  const managedShopCategoryRules = currentCategoryRules.filter((rule) => rule.shopId === managedStore?.shopId);
+  const managedShopProductRules = currentProductRules.filter((rule) => rule.shopId === managedStore?.shopId);
+  const productsForCategory = productOptions.filter((product) => product.categoryId === draftCategoryId);
+  const selectedDraftProduct =
+    productOptions.find((product) => product.id === draftProductId) ?? productsForCategory[0] ?? productOptions[0];
+  const filteredProductOptions = productsForCategory
+    .filter((product) => product.name.toLowerCase().includes(draftProductSearch.trim().toLowerCase()))
+    .slice(0, 8);
+  const productRuleSuggestion = getProductRuleSuggestion(draftProductId, draftCategoryId);
+  const productRuleSuggestions = getProductRuleSuggestions(draftProductId, draftCategoryId);
+  const commissionTypeOptions = getCommissionTypeOptions(draftProductId, draftCategoryId);
+  const commissionPeriodWarnings = getCommissionPeriodWarnings(commissionPeriods);
+  const commissionTierWarnings = getCommissionTierWarnings(commissionRateTiers);
+  const commissionDesignerWarnings = [...commissionPeriodWarnings, ...commissionTierWarnings];
+  const commissionDesignerStatus = commissionDesignerWarnings.length ? "Needs review" : "Ready";
+  const activePeriodRate = commissionPeriods[0]?.rate ?? "0";
+  const firstTier = commissionRateTiers[0];
+  const firstTierText = firstTier ? `$${number.format(Number(firstTier.amountFrom) || 0)} at ${firstTier.rate}%` : "-";
+  const historySuggestions = [
+    {
+      title: "Preview After History Changes",
+      detail: "Monthly tier and category rules changed recently. Run a sample order preview before the next contract update.",
+      action: "Open Preview",
+      onClick: () => openJourneyTab("preview")
+    },
+    {
+      title: "Review Premium Category Rate",
+      detail: `${currentCategoryRules.find((rule) => rule.categoryId === "c-trout-au")?.categoryName ?? "Premium category"} is above the default commission. Confirm margin still supports this rate.`,
+      action: "View Category Rules",
+      onClick: () => openJourneyTab("categories")
+    },
+    {
+      title: "Check Store Overrides",
+      detail: `${customShopCount} store override ${customShopCount === 1 ? "is" : "are"} active. Confirm store-level rules still match merchant main commission.`,
+      action: "View Stores",
+      onClick: () => openJourneyTab("shops")
+    }
+  ];
 
   useEffect(() => {
     function syncJourneyFromUrl() {
@@ -285,6 +603,17 @@ export function CommissionDashboard({
     return () => window.removeEventListener("hashchange", syncJourneyFromUrl);
   }, []);
 
+  useEffect(() => {
+    if (!drawerType) return;
+
+    const isCurrentTypeAllowed = commissionTypeOptions.some((option) => option.value === draftValueType);
+
+    if (!isCurrentTypeAllowed) {
+      setDraftValueType(productRuleSuggestion.valueType);
+      setDraftValue(productRuleSuggestion.value);
+    }
+  }, [commissionTypeOptions, draftValueType, drawerType, productRuleSuggestion]);
+
   function openJourneyTab(tab: Tab) {
     setActiveTab(tab);
 
@@ -294,15 +623,73 @@ export function CommissionDashboard({
     }
   }
 
+  function updateCommissionPeriod(id: number, patch: Partial<CommissionPeriod>) {
+    setCommissionPeriods((current) =>
+      current.map((period) => (period.id === id ? { ...period, ...patch } : period))
+    );
+  }
+
+  function addCommissionPeriod() {
+    setCommissionPeriods((current) => {
+      const nextId = current.length ? Math.max(...current.map((period) => period.id)) + 1 : 1;
+      const previousRate = current[current.length - 1]?.rate ?? "7";
+
+      return [
+        ...current,
+        {
+          id: nextId,
+          startDate: "14-07-2026",
+          endDate: "14-08-2026",
+          rate: String(Number(previousRate) + 3 || 10)
+        }
+      ];
+    });
+  }
+
+  function removeCommissionPeriod(id: number) {
+    setCommissionPeriods((current) =>
+      current.length === 1 ? current : current.filter((period) => period.id !== id)
+    );
+  }
+
+  function updateCommissionRateTier(id: number, patch: Partial<CommissionRateTier>) {
+    setCommissionRateTiers((current) => current.map((tier) => (tier.id === id ? { ...tier, ...patch } : tier)));
+  }
+
+  function addCommissionRateTier() {
+    setCommissionRateTiers((current) => {
+      const nextId = current.length ? Math.max(...current.map((tier) => tier.id)) + 1 : 1;
+      const lastAmount = Number(current[current.length - 1]?.amountFrom ?? 0);
+
+      return [
+        ...current,
+        {
+          id: nextId,
+          amountFrom: String(lastAmount + 10000),
+          rate: "15"
+        }
+      ];
+    });
+  }
+
+  function removeCommissionRateTier(id: number) {
+    setCommissionRateTiers((current) =>
+      current.length === 1 ? current : current.filter((tier) => tier.id !== id)
+    );
+  }
+
   function openRuleDrawer(type: Exclude<RuleDrawerType, null>) {
     setIsCreatingMerchant(false);
     setIsManagingStores(false);
     setIsAddingTier(false);
+    setRuleSaveStatus("");
+    setOpenRuleActionMenu("");
     setDrawerType(type);
     setDraftScope("merchant");
     setDraftShopId(selectedMerchant.shops[0]?.shopId ?? "");
     setDraftCategoryId(categoryOptions[0].id);
     setDraftProductId(productOptions[0].id);
+    setDraftProductSearch("");
     setDraftValueType(type === "category" ? "percentage" : "amount_per_kg");
     setDraftValue(type === "category" ? "15" : "1");
     setDraftEffectiveDate(todayInputValue());
@@ -312,6 +699,86 @@ export function CommissionDashboard({
 
   function closeRuleDrawer() {
     setDrawerType(null);
+    setOpenRuleActionMenu("");
+  }
+
+  function openCategoryRuleForEdit(rule: DisplayRule) {
+    if (!("categoryName" in rule)) return;
+
+    setDrawerType("category");
+    setOpenRuleActionMenu("");
+    setDraftScope(rule.scope);
+    setDraftShopId(rule.shopId ?? selectedMerchant.shops[0]?.shopId ?? "");
+    setDraftCategoryId(rule.categoryId);
+    setDraftValueType(rule.valueType);
+    setDraftValue(String(rule.value));
+    setDraftEffectiveDate(getEffectiveDate(rule) === "-" ? todayInputValue() : getEffectiveDate(rule));
+    setDraftStatus(rule.status);
+    setDraftNote(getRuleNote(rule) === "-" ? "" : getRuleNote(rule));
+  }
+
+  function openProductRuleForEdit(rule: ProductRule | LocalProductRule) {
+    setDrawerType("product");
+    setOpenRuleActionMenu("");
+    setDraftScope(rule.scope);
+    setDraftShopId(rule.shopId ?? selectedMerchant.shops[0]?.shopId ?? "");
+    setDraftCategoryId(rule.categoryId);
+    setDraftProductId(rule.productId);
+    setDraftProductSearch("");
+    setDraftValueType(rule.valueType);
+    setDraftValue(String(rule.value));
+    setDraftEffectiveDate(getEffectiveDate(rule) === "-" ? todayInputValue() : getEffectiveDate(rule));
+    setDraftStatus(rule.status);
+    setDraftNote(getRuleNote(rule) === "-" ? "" : getRuleNote(rule));
+  }
+
+  function duplicateCategoryRuleAsDraft(rule: DisplayRule) {
+    if (!("categoryName" in rule)) return;
+
+    setLocalCategoryRules((rules) => [
+      ...rules,
+      {
+        ...rule,
+        id: `draft-cat-${Date.now()}`,
+        merchantId: selectedMerchant.merchantId,
+        status: "inactive",
+        effectiveDate: todayInputValue(),
+        note: `Draft duplicate from ${rule.categoryName}`
+      }
+    ]);
+    setOpenRuleActionMenu("");
+    setRuleSaveStatus(`Success: Draft category rule duplicated for ${rule.categoryName}.`);
+  }
+
+  function duplicateProductRuleAsDraft(rule: ProductRule | LocalProductRule) {
+    setLocalProductRules((rules) => [
+      ...rules,
+      {
+        ...rule,
+        id: `draft-prod-${Date.now()}`,
+        merchantId: selectedMerchant.merchantId,
+        status: "inactive",
+        effectiveDate: todayInputValue(),
+        note: `Draft duplicate from ${rule.productName}`
+      }
+    ]);
+    setOpenRuleActionMenu("");
+    setRuleSaveStatus(`Success: Draft product rule duplicated for ${rule.productName}.`);
+  }
+
+  function applyProductRuleSuggestion(suggestion = productRuleSuggestion) {
+    setDraftValueType(suggestion.valueType);
+    setDraftValue(suggestion.value);
+  }
+
+  function selectDraftProduct(product: (typeof productOptions)[number]) {
+    setDraftProductId(product.id);
+    setDraftCategoryId(product.categoryId);
+    setDraftProductSearch("");
+
+    const nextSuggestion = getProductRuleSuggestion(product.id, product.categoryId);
+    setDraftValueType(nextSuggestion.valueType);
+    setDraftValue(nextSuggestion.value);
   }
 
   function openMerchantCreatePage() {
@@ -481,7 +948,7 @@ export function CommissionDashboard({
       shops: [
         {
           shopId,
-          shopName: `${newMerchantName} Main Shop`,
+          shopName: `${newMerchantName} Main Store`,
           useMerchantRule: true,
           defaultValueType: newDefaultType,
           defaultValue: Number(newDefaultValue) || 0,
@@ -507,6 +974,8 @@ export function CommissionDashboard({
     const shopId = draftScope === "shop" ? draftShopId : undefined;
     const category = categoryOptions.find((item) => item.id === draftCategoryId) ?? categoryOptions[0];
     const numericValue = Number(draftValue) || 0;
+    let savedRuleLabel = category.name;
+    let savedRuleTab: Tab = "categories";
 
     if (drawerType === "category") {
       setLocalCategoryRules((rules) => [
@@ -525,6 +994,8 @@ export function CommissionDashboard({
           note: draftNote
         }
       ]);
+      savedRuleLabel = category.name;
+      savedRuleTab = "categories";
     }
 
     if (drawerType === "product") {
@@ -549,8 +1020,14 @@ export function CommissionDashboard({
           note: draftNote
         }
       ]);
+      savedRuleLabel = product.name;
+      savedRuleTab = "products";
     }
 
+    setRuleSaveStatus(
+      `Success: ${drawerType === "product" ? "Product" : "Category"} rule saved for ${savedRuleLabel} at ${formatCommissionValue(draftValueType, numericValue)}.`
+    );
+    openJourneyTab(savedRuleTab);
     closeRuleDrawer();
   }
 
@@ -654,7 +1131,7 @@ export function CommissionDashboard({
               <div>
                 <p className="breadcrumb">Merchant Commission / Add New</p>
                 <h2>Add Merchant Commission</h2>
-                <p>Create merchant main profile, default commission, monthly tiers, and first shop setup.</p>
+                <p>Create merchant main profile, default commission, monthly tiers, and first store setup.</p>
               </div>
               <div className="rulePageActions">
                 <button className="secondaryButton" type="button" onClick={closeMerchantCreatePage}>Cancel</button>
@@ -670,7 +1147,7 @@ export function CommissionDashboard({
                 <div className="merchantHeroText">
                   <span>Merchant Main Profile</span>
                   <strong>{newMerchantName || "New Merchant"}</strong>
-                  <p>{newTotalShops || "0"} shops will inherit this commission setup</p>
+                  <p>{newTotalShops || "0"} stores will inherit this commission setup</p>
                 </div>
               </div>
               <div className="merchantHeroStats">
@@ -683,7 +1160,7 @@ export function CommissionDashboard({
                   <strong>3 tiers enabled</strong>
                 </div>
                 <div>
-                  <span>Shop Rule</span>
+                  <span>Store Rule</span>
                   <strong>Use main rule</strong>
                 </div>
               </div>
@@ -710,10 +1187,10 @@ export function CommissionDashboard({
               title="Designer Work Split"
               description="This page captures the merchant main rule first, then prepares inherited setup for all stores under the merchant."
               items={[
-                "Merchant profile and shop count",
+                "Merchant profile and store count",
                 "Default commission fallback",
                 "Monthly tier thresholds",
-                "First shop inheritance setup",
+                "First store inheritance setup",
                 "Save-ready merchant summary"
               ]}
             />
@@ -734,7 +1211,7 @@ export function CommissionDashboard({
                     <input value={newMerchantCode} onChange={(event) => setNewMerchantCode(event.target.value)} />
                   </label>
                   <label className="fieldBlock">
-                    <span>Total Shops</span>
+                    <span>Total Stores</span>
                     <input value={newTotalShops} onChange={(event) => setNewTotalShops(event.target.value)} />
                   </label>
                   <label className="fieldBlock">
@@ -875,20 +1352,20 @@ export function CommissionDashboard({
               <section className="storeProfileCard">
                 <div className="sectionLabel">
                   <span>04</span>
-                  <strong>Shop Setup</strong>
+                  <strong>Store Setup</strong>
                 </div>
                 <div className="tierControlHeader">
                   <div>
                     <strong>Use Merchant Main Commission</strong>
-                    <span>All new shops inherit the main merchant commission unless a shop override is added later.</span>
+                    <span>All new stores inherit the main merchant commission unless a store override is added later.</span>
                   </div>
                   <button className="switch isOn" type="button" aria-pressed="true">
                     <span />
                   </button>
                 </div>
                 <div className="rulePreviewStrip">
-                  <span>First shop name</span>
-                  <strong>{newMerchantName || "New Merchant"} Main Shop</strong>
+                  <span>First store name</span>
+                  <strong>{newMerchantName || "New Merchant"} Main Store</strong>
                 </div>
               </section>
 
@@ -900,8 +1377,8 @@ export function CommissionDashboard({
                     <strong>{newMerchantName || "-"}</strong>
                   </div>
                   <div>
-                    <span>Total Shops</span>
-                    <strong>{newTotalShops || "0"} shops</strong>
+                    <span>Total Stores</span>
+                    <strong>{newTotalShops || "0"} stores</strong>
                   </div>
                   <div>
                     <span>Default Commission</span>
@@ -1063,7 +1540,7 @@ export function CommissionDashboard({
               <div>
                 <p className="breadcrumb">Merchant Commission / {selectedMerchant.merchantName} / Manage Store</p>
                 <h2>Manage Store Commission</h2>
-                <p>Review shop inheritance, custom commission overrides, category rules, and product rules.</p>
+                <p>Review store inheritance, custom commission overrides, category rules, and product rules.</p>
               </div>
               <div className="rulePageActions">
                 <button className="secondaryButton" type="button" onClick={closeManageStorePage}>Back</button>
@@ -1074,25 +1551,25 @@ export function CommissionDashboard({
             <section className="merchantHeroCard">
               <div className="merchantHeroBanner storeHeroBanner">
                 <div className="merchantLogoPreview">
-                  {managedShop?.shopName.slice(0, 2).toUpperCase() ?? "ST"}
+                  {managedStore?.shopName.slice(0, 2).toUpperCase() ?? "ST"}
                 </div>
                 <div className="merchantHeroText">
                   <span>Store Commission Profile</span>
-                  <strong>{managedShop?.shopName ?? "Store"}</strong>
-                  <p>{selectedMerchant.merchantName} / {managedShop?.useMerchantRule ? "Using merchant main rule" : "Custom shop rule"}</p>
+                  <strong>{managedStore?.shopName ?? "Store"}</strong>
+                  <p>{selectedMerchant.merchantName} / {managedStore?.useMerchantRule ? "Using merchant main rule" : "Custom store rule"}</p>
                 </div>
               </div>
               <div className="merchantHeroStats">
                 <div>
                   <span>Commission Source</span>
-                  <strong>{managedShop?.useMerchantRule ? "Merchant Main" : "Shop Override"}</strong>
+                  <strong>{managedStore?.useMerchantRule ? "Merchant Main" : "Store Override"}</strong>
                 </div>
                 <div>
                   <span>Default Commission</span>
                   <strong>
-                    {managedShop?.useMerchantRule
+                    {managedStore?.useMerchantRule
                       ? formatCommissionValue(selectedMerchant.defaultValueType, selectedMerchant.defaultValue)
-                      : formatCommissionValue(managedShop?.defaultValueType ?? "percentage", managedShop?.defaultValue ?? 0)}
+                      : formatCommissionValue(managedStore?.defaultValueType ?? "percentage", managedStore?.defaultValue ?? 0)}
                   </strong>
                 </div>
                 <div>
@@ -1123,7 +1600,7 @@ export function CommissionDashboard({
                 <div className="shopSelectorList">
                   {selectedMerchant.shops.map((shop) => (
                     <button
-                      className={shop.shopId === managedShop?.shopId ? "shopSelectorItem active" : "shopSelectorItem"}
+                      className={shop.shopId === managedStore?.shopId ? "shopSelectorItem active" : "shopSelectorItem"}
                       key={shop.shopId}
                       type="button"
                       onClick={() => setManagedShopId(shop.shopId)}
@@ -1145,7 +1622,7 @@ export function CommissionDashboard({
                     <strong>Use Merchant Main Commission</strong>
                     <span>Turn off only when this store needs a special commission setup.</span>
                   </div>
-                  <button className={managedShop?.useMerchantRule ? "switch isOn" : "switch"} type="button" aria-pressed={managedShop?.useMerchantRule}>
+                  <button className={managedStore?.useMerchantRule ? "switch isOn" : "switch"} type="button" aria-pressed={managedStore?.useMerchantRule}>
                     <span />
                   </button>
                 </div>
@@ -1186,7 +1663,7 @@ export function CommissionDashboard({
                     <span>Commission</span>
                     <span>Status</span>
                   </div>
-                  {(managedShop?.useMerchantRule ? selectedMerchant.tiers : managedShop?.tiers ?? []).map((tier) => (
+                  {(managedStore?.useMerchantRule ? selectedMerchant.tiers : managedStore?.tiers ?? []).map((tier) => (
                     <div className="tierFormRow" key={tier.id}>
                       <input defaultValue={tier.name} aria-label={`${tier.name} store tier name`} />
                       <div className="moneyInput">
@@ -1260,54 +1737,10 @@ export function CommissionDashboard({
               </div>
             </div>
 
-            <CaptureBrief
-              title={`${drawerType === "category" ? "Category" : "Product"} Rule Capture`}
-              description="Rules can apply to all shops under the merchant main account or only to one selected shop."
-              items={[
-                "Rule scope and target shop",
-                drawerType === "category" ? "Category target" : "Category and product target",
-                "Commission type and value",
-                "Effective date and status",
-                "Note for approval and history"
-              ]}
-            />
-
             <div className="rulePageGrid">
               <section className="rulePageCard">
                 <div className="sectionLabel">
                   <span>01</span>
-                  <strong>Rule Target</strong>
-                </div>
-                <div className="designerFieldGrid">
-                  <label className="fieldBlock">
-                    <span>Rule Scope</span>
-                    <select
-                      value={draftScope}
-                      onChange={(event) => setDraftScope(event.target.value as RuleScope)}
-                    >
-                      <option value="merchant">Merchant Main</option>
-                      <option value="shop">Shop Override</option>
-                    </select>
-                  </label>
-                  <label className="fieldBlock">
-                    <span>Shop</span>
-                    <select
-                      disabled={draftScope === "merchant"}
-                      value={draftScope === "merchant" ? "all" : draftShopId}
-                      onChange={(event) => setDraftShopId(event.target.value)}
-                    >
-                      <option value="all">All Shops</option>
-                      {selectedMerchant.shops.map((shop) => (
-                        <option key={shop.shopId} value={shop.shopId}>{shop.shopName}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </section>
-
-              <section className="rulePageCard">
-                <div className="sectionLabel">
-                  <span>02</span>
                   <strong>{drawerType === "category" ? "Category Detail" : "Product Detail"}</strong>
                 </div>
                 <div className="designerFieldGrid">
@@ -1315,7 +1748,16 @@ export function CommissionDashboard({
                     <span>Category</span>
                     <select
                       value={draftCategoryId}
-                      onChange={(event) => setDraftCategoryId(event.target.value)}
+                      onChange={(event) => {
+                        const nextCategoryId = event.target.value;
+                        const nextProduct = productOptions.find((product) => product.categoryId === nextCategoryId);
+                        setDraftCategoryId(nextCategoryId);
+                        setDraftProductSearch("");
+
+                        if (nextProduct) {
+                          selectDraftProduct(nextProduct);
+                        }
+                      }}
                     >
                       {categoryOptions.map((category) => (
                         <option key={category.id} value={category.id}>{category.name}</option>
@@ -1325,28 +1767,78 @@ export function CommissionDashboard({
                   {drawerType === "product" && (
                     <label className="fieldBlock">
                       <span>Product</span>
-                      <select
-                        value={draftProductId}
-                        onChange={(event) => {
-                          const product = productOptions.find((item) => item.id === event.target.value);
-                          setDraftProductId(event.target.value);
-                          if (product) {
-                            setDraftCategoryId(product.categoryId);
-                          }
-                        }}
-                      >
-                        {productOptions.map((product) => (
-                          <option key={product.id} value={product.id}>{product.name}</option>
-                        ))}
-                      </select>
+                      <div className="productPicker">
+                        <div className="selectedProductBox">
+                          <div>
+                            <span>Selected Product</span>
+                            <strong>{selectedDraftProduct?.name ?? "No product selected"}</strong>
+                          </div>
+                          <em>{productsForCategory.length} products</em>
+                        </div>
+                        <input
+                          aria-label="Search product"
+                          placeholder="Search product name..."
+                          value={draftProductSearch}
+                          onChange={(event) => setDraftProductSearch(event.target.value)}
+                        />
+                        <div className="productResultList">
+                          {filteredProductOptions.length ? filteredProductOptions.map((product) => (
+                            <button
+                              className={product.id === draftProductId ? "productResultItem active" : "productResultItem"}
+                              key={product.id}
+                              type="button"
+                              onClick={() => selectDraftProduct(product)}
+                            >
+                              <span>{product.name}</span>
+                              <strong>
+                                {formatCommissionType(getProductRuleSuggestion(product.id, product.categoryId).valueType)}
+                              </strong>
+                            </button>
+                          )) : (
+                            <div className="productEmptyState">No matching product in this category.</div>
+                          )}
+                        </div>
+                      </div>
                     </label>
                   )}
                 </div>
+                {drawerType === "product" && (
+                  <div className="ruleSuggestionPanel">
+                    <div className="ruleSuggestionHeader">
+                      <div>
+                        <span>Suggested Commission</span>
+                        <strong>All usable options for {selectedDraftProduct?.name}</strong>
+                        <p>Choose the method that matches the merchant contract. Invalid methods, such as kg pricing for phones, are hidden.</p>
+                      </div>
+                      <em>{productRuleSuggestions.length} options</em>
+                    </div>
+                    <div className="suggestionOptionGrid">
+                      {productRuleSuggestions.map((suggestion) => (
+                        <article
+                          className={suggestion.tone === "recommended" ? "suggestionOption recommended" : "suggestionOption"}
+                          key={`${suggestion.valueType}-${suggestion.value}-${suggestion.title}`}
+                        >
+                          <span>{suggestion.title}</span>
+                          <strong>{formatCommissionType(suggestion.valueType)} / {suggestion.label}</strong>
+                          <p>{suggestion.reason}</p>
+                          <small>{suggestion.detail}</small>
+                          <button
+                            className={suggestion.tone === "recommended" ? "primaryButton" : "secondaryButton"}
+                            type="button"
+                            onClick={() => applyProductRuleSuggestion(suggestion)}
+                          >
+                            Use This
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
 
               <section className="rulePageCard">
                 <div className="sectionLabel">
-                  <span>03</span>
+                  <span>02</span>
                   <strong>Commission Detail</strong>
                 </div>
                 <div className="designerFieldGrid">
@@ -1356,9 +1848,9 @@ export function CommissionDashboard({
                       value={draftValueType}
                       onChange={(event) => setDraftValueType(event.target.value as CommissionValueType)}
                     >
-                      <option value="percentage">Percentage</option>
-                      <option value="fixed_amount">Fixed Amount</option>
-                      <option value="amount_per_kg">Amount per Kg</option>
+                      {commissionTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
                     </select>
                   </label>
                   <label className="fieldBlock">
@@ -1388,7 +1880,7 @@ export function CommissionDashboard({
 
               <section className="rulePageCard">
                 <div className="sectionLabel">
-                  <span>04</span>
+                  <span>03</span>
                   <strong>Activation</strong>
                 </div>
                 <div className="designerFieldGrid">
@@ -1427,18 +1919,6 @@ export function CommissionDashboard({
                   <div>
                     <span>Merchant</span>
                     <strong>{selectedMerchant.merchantName}</strong>
-                  </div>
-                  <div>
-                    <span>Scope</span>
-                    <strong>{draftScope === "merchant" ? "Merchant Main" : "Shop Override"}</strong>
-                  </div>
-                  <div>
-                    <span>Shop</span>
-                    <strong>
-                      {draftScope === "merchant"
-                        ? "All Shops"
-                        : selectedMerchant.shops.find((shop) => shop.shopId === draftShopId)?.shopName}
-                    </strong>
                   </div>
                   <div>
                     <span>Commission</span>
@@ -1487,10 +1967,10 @@ export function CommissionDashboard({
                 <tr>
                   <th>#</th>
                   <th>Merchant Main</th>
-                  <th>Total Shops</th>
+                  <th>Total Stores</th>
                   <th>Default Commission</th>
                   <th>Monthly Tier</th>
-                  <th>Shop Override</th>
+                  <th>Store Override</th>
                   <th>Category Rules</th>
                   <th>Product Rules</th>
                   <th>Status</th>
@@ -1509,10 +1989,10 @@ export function CommissionDashboard({
                       <strong>{merchant.merchantName}</strong>
                       <span className="mutedText">{merchant.merchantCode}</span>
                     </td>
-                    <td>{merchant.totalShops} shops</td>
+                    <td>{merchant.totalShops} stores</td>
                     <td>{formatCommissionValue(merchant.defaultValueType, merchant.defaultValue)}</td>
                     <td>{merchant.tiers.length} tiers</td>
-                    <td>{merchant.shops.filter((shop) => !shop.useMerchantRule).length} shops</td>
+                    <td>{merchant.shops.filter((shop) => !shop.useMerchantRule).length} stores</td>
                     <td>{formatRuleCount(merchant.categoryRules.length)}</td>
                     <td>{formatRuleCount(merchant.productRules.length)}</td>
                     <td><StatusBadge status={merchant.status} /></td>
@@ -1534,7 +2014,7 @@ export function CommissionDashboard({
             <div>
               <p className="eyebrow">Merchant Main</p>
               <h2>{selectedMerchant.merchantName}</h2>
-              <p>{selectedMerchant.totalShops} shops under this merchant</p>
+              <p>{selectedMerchant.totalShops} stores under this merchant</p>
             </div>
             <StatusBadge status={selectedMerchant.status} />
           </div>
@@ -1554,8 +2034,171 @@ export function CommissionDashboard({
             ))}
           </div>
 
+          {ruleSaveStatus && (
+            <div className="successNotice" role="status">
+              <strong>Success</strong>
+              <span>{ruleSaveStatus.replace(/^Success: /, "")}</span>
+            </div>
+          )}
+
           {activeTab === "main" && (
             <div className="mainCommissionLayout">
+              <section className="commissionRateCard merchantCommissionRateCard" aria-label="Merchant commission rate settings">
+                <div className="designerCardHeader">
+                  <div>
+                    <h3>Commission Rate</h3>
+                    <p>Merchant-level commission structure.</p>
+                  </div>
+                  <span className={commissionDesignerWarnings.length ? "pill warningPill" : "pill"}>
+                    {commissionDesignerStatus}
+                  </span>
+                </div>
+
+                <div className="commissionLogicSummary" aria-label="Commission logic summary">
+                  <div>
+                    <span>Current Period</span>
+                    <strong>{activePeriodRate}%</strong>
+                  </div>
+                  <div>
+                    <span>First Tier</span>
+                    <strong>{firstTierText}</strong>
+                  </div>
+                  <div>
+                    <span>Fallback</span>
+                    <strong>{fixedCommissionRate}% fixed</strong>
+                  </div>
+                </div>
+
+                <div className="commissionRateHeader">
+                  <h3>Commission Period</h3>
+                  <button
+                    aria-label="Add commission period"
+                    className="rateActionButton add"
+                    onClick={addCommissionPeriod}
+                    type="button"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="commissionPeriodList">
+                  {commissionPeriods.map((period, index) => (
+                    <div className="commissionPeriodRow" key={period.id}>
+                      <div className="periodDateControl">
+                        <span className="periodLabel">Period {index + 1}</span>
+                        <span className="calendarGlyph" aria-hidden="true" />
+                        <input
+                          aria-label={`Period ${index + 1} start date`}
+                          onChange={(event) => updateCommissionPeriod(period.id, { startDate: event.target.value })}
+                          onClick={(event) => event.currentTarget.showPicker?.()}
+                          type="date"
+                          value={toDateInputValue(period.startDate)}
+                        />
+                        <span className="periodRangeSeparator">-</span>
+                        <input
+                          aria-label={`Period ${index + 1} end date`}
+                          onChange={(event) => updateCommissionPeriod(period.id, { endDate: event.target.value })}
+                          onClick={(event) => event.currentTarget.showPicker?.()}
+                          type="date"
+                          value={toDateInputValue(period.endDate)}
+                        />
+                        <span className="selectChevron" aria-hidden="true" />
+                      </div>
+                      <div className="periodRateControl">
+                        <input
+                          aria-label={`Period ${index + 1} commission rate`}
+                          onChange={(event) => updateCommissionPeriod(period.id, { rate: event.target.value })}
+                          value={period.rate}
+                        />
+                        <span>%</span>
+                      </div>
+                      <button
+                        aria-label={`Remove period ${index + 1}`}
+                        className="rateActionButton remove"
+                        onClick={() => removeCommissionPeriod(period.id)}
+                        type="button"
+                      >
+                        -
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {commissionPeriodWarnings.length > 0 && (
+                  <div className="commissionWarningList" role="status">
+                    {commissionPeriodWarnings.map((warning) => (
+                      <span key={warning}>{warning}</span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="tierCommissionGroup">
+                  <div className="tierCommissionHeader">
+                    <span>Tier Commission Rate</span>
+                    <button
+                      aria-label="Add commission tier"
+                      className="rateActionButton add"
+                      onClick={addCommissionRateTier}
+                      type="button"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="tierCommissionList">
+                    {commissionRateTiers.map((tier, index) => (
+                      <div className="tierCommissionRow" key={tier.id}>
+                        <span className="periodLabel">Tier {index + 1}</span>
+                        <div className="tierAmountControl">
+                          <span>$</span>
+                          <input
+                            aria-label={`Tier ${index + 1} amount from`}
+                            onChange={(event) => updateCommissionRateTier(tier.id, { amountFrom: event.target.value })}
+                            value={tier.amountFrom}
+                          />
+                        </div>
+                        <div className="periodRateControl">
+                          <input
+                            aria-label={`Tier ${index + 1} commission rate`}
+                            onChange={(event) => updateCommissionRateTier(tier.id, { rate: event.target.value })}
+                            value={tier.rate}
+                          />
+                          <span>%</span>
+                        </div>
+                        <button
+                          aria-label={`Remove tier ${index + 1}`}
+                          className="rateActionButton remove"
+                          onClick={() => removeCommissionRateTier(tier.id)}
+                          type="button"
+                        >
+                          -
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {commissionTierWarnings.length > 0 && (
+                    <div className="commissionWarningList" role="status">
+                      {commissionTierWarnings.map((warning) => (
+                        <span key={warning}>{warning}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="fixedRateRow">
+                  <span>Fixed Commission Rate</span>
+                  <div className="periodRateControl">
+                    <input
+                      aria-label="Fixed commission rate"
+                      onChange={(event) => setFixedCommissionRate(event.target.value)}
+                      value={fixedCommissionRate}
+                    />
+                    <span>%</span>
+                  </div>
+                </div>
+                <div className="commissionLogicNote">
+                  <strong>How this applies</strong>
+                  <span>Period rate applies by order date, tier rate applies by monthly sales, and fixed rate is the fallback.</span>
+                </div>
+              </section>
+
               <section className="designerCard">
                 <div className="designerCardHeader">
                   <div>
@@ -1694,12 +2337,12 @@ export function CommissionDashboard({
               <section className="infoBox wide">
                 <h3>Commission Priority</h3>
                 <ol>
-                  <li>Shop Product Commission</li>
-                  <li>Shop Category Commission</li>
+                  <li>Store Product Commission</li>
+                  <li>Store Category Commission</li>
                   <li>Merchant Main Product Commission</li>
                   <li>Merchant Main Category Commission</li>
-                  <li>Shop Monthly Tier Commission</li>
-                  <li>Shop Default Commission</li>
+                  <li>Store Monthly Tier Commission</li>
+                  <li>Store Default Commission</li>
                   <li>Merchant Main Monthly Tier Commission</li>
                   <li>Merchant Main Default Commission</li>
                 </ol>
@@ -1711,8 +2354,8 @@ export function CommissionDashboard({
             <section className="tablePanel nested">
               <div className="panelHeader">
                 <div>
-                  <h2>Shop Commission</h2>
-                  <p>{customShopCount} custom shop override</p>
+                  <h2>Store Commission</h2>
+                  <p>{customShopCount} custom store override</p>
                 </div>
                 <button className="secondaryButton" type="button" onClick={openManageStorePage}>Manage Store</button>
               </div>
@@ -1720,7 +2363,7 @@ export function CommissionDashboard({
                 <table>
                   <thead>
                     <tr>
-                      <th>Shop Name</th>
+                      <th>Store Name</th>
                       <th>Source Rule</th>
                       <th>Default</th>
                       <th>Tier</th>
@@ -1731,8 +2374,8 @@ export function CommissionDashboard({
                   </thead>
                   <tbody>
                     {selectedMerchant.shops.map((shop) => {
-                      const isSelectedPreviewShop = selectedShopId === shop.shopId;
-                      const isExpandedShop = expandedShopId === shop.shopId;
+                      const isSelectedPreviewStore = selectedShopId === shop.shopId;
+                      const isExpandedStore = expandedShopId === shop.shopId;
                       const shopTierRules = shop.useMerchantRule ? currentTierRules : shop.tiers;
                       const shopCategoryRules = currentCategoryRules.filter(
                         (rule) => rule.scope === "shop" && rule.shopId === shop.shopId
@@ -1743,21 +2386,21 @@ export function CommissionDashboard({
                       const shopDefaultType = shop.useMerchantRule ? selectedMerchant.defaultValueType : shop.defaultValueType;
                       const shopDefaultValue = shop.useMerchantRule ? selectedMerchant.defaultValue : shop.defaultValue;
                       const shopRuleCount = shopCategoryRules.length + shopProductRules.length;
-                      const shopPreview = isSelectedPreviewShop ? preview : null;
+                      const shopPreview = isSelectedPreviewStore ? preview : null;
 
                       return (
                       <Fragment key={shop.shopId}>
                       <tr
-                        className={isExpandedShop ? "clickableRuleRow selectedRow" : "clickableRuleRow"}
+                        className={isExpandedStore ? "clickableRuleRow selectedRow" : "clickableRuleRow"}
                         key={shop.shopId}
                         onClick={() => {
                           setSelectedShopId(shop.shopId);
-                          setExpandedShopId(isExpandedShop ? "" : shop.shopId);
+                          setExpandedShopId(isExpandedStore ? "" : shop.shopId);
                           void refreshPreview(shop.shopId);
                         }}
                       >
                         <td>{shop.shopName}</td>
-                        <td>{shop.useMerchantRule ? "Merchant Main Rule" : "Custom Shop Rule"}</td>
+                        <td>{shop.useMerchantRule ? "Merchant Main Rule" : "Custom Store Rule"}</td>
                         <td>
                           {shop.useMerchantRule
                             ? formatCommissionValue(selectedMerchant.defaultValueType, selectedMerchant.defaultValue)
@@ -1772,28 +2415,28 @@ export function CommissionDashboard({
                         <td className="actionCell">
                           <button
                             aria-label={`Show detail for ${shop.shopName}`}
-                            className={isExpandedShop ? "previewActionButton active" : "previewActionButton"}
+                            className={isExpandedStore ? "previewActionButton active" : "previewActionButton"}
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
                               setSelectedShopId(shop.shopId);
-                              setExpandedShopId(isExpandedShop ? "" : shop.shopId);
+                              setExpandedShopId(isExpandedStore ? "" : shop.shopId);
                               void refreshPreview(shop.shopId);
                             }}
                           >
-                            {isExpandedShop ? "Hide Detail" : "Detail"}
+                            {isExpandedStore ? "Hide Detail" : "Detail"}
                           </button>
                         </td>
                       </tr>
-                      {isExpandedShop && (
+                      {isExpandedStore && (
                         <tr className="shopDetailRow">
                           <td colSpan={7}>
                             <div className="shopDetailPanel">
                               <div className="shopDetailHeader">
                                 <div>
-                                  <span className="eyebrow">Shop Detail</span>
+                                  <span className="eyebrow">Store Detail</span>
                                   <h3>{shop.shopName}</h3>
-                                  <p>{shop.useMerchantRule ? "Using merchant main commission rules" : "Using custom shop commission rules"}</p>
+                                  <p>{shop.useMerchantRule ? "Using merchant main commission rules" : "Using custom store commission rules"}</p>
                                 </div>
                                 <div className="shopDetailActions">
                                   <StatusBadge status={shop.status} />
@@ -1814,7 +2457,7 @@ export function CommissionDashboard({
                               <div className="shopDetailStats">
                                 <div>
                                   <span>Source Rule</span>
-                                  <strong>{shop.useMerchantRule ? "Merchant Main Rule" : "Custom Shop Rule"}</strong>
+                                  <strong>{shop.useMerchantRule ? "Merchant Main Rule" : "Custom Store Rule"}</strong>
                                 </div>
                                 <div>
                                   <span>Default Commission</span>
@@ -1842,7 +2485,7 @@ export function CommissionDashboard({
                                         </div>
                                       ))
                                     ) : (
-                                      <p>No monthly tier for this shop.</p>
+                                      <p>No monthly tier for this store.</p>
                                     )}
                                   </div>
                                 </section>
@@ -1898,7 +2541,7 @@ export function CommissionDashboard({
               <div className="panelHeader">
                 <div>
                   <h2>Category Rules</h2>
-                  <p>Merchant main and shop-level category commission</p>
+                  <p>Merchant main and store-level category commission</p>
                 </div>
                 <button className="secondaryButton" type="button" onClick={() => openRuleDrawer("category")}>
                   + Add Category Rule
@@ -1909,7 +2552,7 @@ export function CommissionDashboard({
                   <thead>
                     <tr>
                       <th>Rule Scope</th>
-                      <th>Shop</th>
+                      <th>Store</th>
                       <th>Category</th>
                       <th>Type</th>
                       <th>Value</th>
@@ -1924,7 +2567,7 @@ export function CommissionDashboard({
                       const ruleKey = `category-${rule.id}`;
                       const isExpandedRule = expandedRuleKey === ruleKey;
                       const ruleShopName = rule.scope === "merchant"
-                        ? "All Shops"
+                        ? "All Stores"
                         : selectedMerchant.shops.find((shop) => shop.shopId === rule.shopId)?.shopName ?? "-";
 
                       return (
@@ -1933,7 +2576,7 @@ export function CommissionDashboard({
                         className={isExpandedRule ? "clickableRuleRow selectedRuleRow" : "clickableRuleRow"}
                         onClick={() => setExpandedRuleKey(isExpandedRule ? "" : ruleKey)}
                       >
-                        <td>{rule.scope === "merchant" ? "Main Rule" : "Shop Rule"}</td>
+                        <td>{rule.scope === "merchant" ? "Main Rule" : "Store Rule"}</td>
                         <td>{ruleShopName}</td>
                         <td>{rule.categoryName}</td>
                         <td>{formatCommissionType(rule.valueType)}</td>
@@ -1941,26 +2584,50 @@ export function CommissionDashboard({
                         <td>{getEffectiveDate(rule)}</td>
                         <td><StatusBadge status={rule.status} /></td>
                         <td>{getRuleNote(rule)}</td>
+                        <td className="actionCell" onClick={(event) => event.stopPropagation()}>
+                          <div className="ruleActionMenuWrap">
+                            <button
+                              aria-label={`Actions for ${rule.categoryName}`}
+                              className="ruleActionIconButton"
+                              type="button"
+                              onClick={() => setOpenRuleActionMenu(openRuleActionMenu === ruleKey ? "" : ruleKey)}
+                            >
+                              <span className="actionChevron" aria-hidden="true" />
+                            </button>
+                            {openRuleActionMenu === ruleKey && (
+                              <div className="ruleActionMenu">
+                                <button type="button" onClick={() => openCategoryRuleForEdit(rule)}>
+                                  <span className="menuIcon editIcon" aria-hidden="true" />
+                                  Edit
+                                </button>
+                                <button type="button" onClick={() => duplicateCategoryRuleAsDraft(rule)}>
+                                  <span className="menuIcon duplicateIcon" aria-hidden="true" />
+                                  Duplicate as Draft
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                       {isExpandedRule && (
                         <tr className="ruleDetailRow">
-                          <td colSpan={8}>
+                          <td colSpan={9}>
                             <div className="ruleDetailPanel">
                               <div className="ruleDetailHeader">
                                 <div>
                                   <span className="eyebrow">Category Rule Detail</span>
                                   <h3>{rule.categoryName}</h3>
-                                  <p>{rule.scope === "merchant" ? "Applies to every shop under this merchant." : `Applies only to ${ruleShopName}.`}</p>
+                                  <p>{rule.scope === "merchant" ? "Applies to every store under this merchant." : `Applies only to ${ruleShopName}.`}</p>
                                 </div>
                                 <StatusBadge status={rule.status} />
                               </div>
                               <div className="ruleDetailStats">
                                 <div>
                                   <span>Rule Scope</span>
-                                  <strong>{rule.scope === "merchant" ? "Main Rule" : "Shop Rule"}</strong>
+                                  <strong>{rule.scope === "merchant" ? "Main Rule" : "Store Rule"}</strong>
                                 </div>
                                 <div>
-                                  <span>Shop</span>
+                                  <span>Store</span>
                                   <strong>{ruleShopName}</strong>
                                 </div>
                                 <div>
@@ -2011,7 +2678,7 @@ export function CommissionDashboard({
                   <thead>
                     <tr>
                       <th>Rule Scope</th>
-                      <th>Shop</th>
+                      <th>Store</th>
                       <th>Category</th>
                       <th>Product</th>
                       <th>Type</th>
@@ -2019,6 +2686,7 @@ export function CommissionDashboard({
                       <th>Effective Date</th>
                       <th>Status</th>
                       <th>Note</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2026,7 +2694,7 @@ export function CommissionDashboard({
                       const ruleKey = `product-${rule.id}`;
                       const isExpandedRule = expandedRuleKey === ruleKey;
                       const ruleShopName = rule.scope === "merchant"
-                        ? "All Shops"
+                        ? "All Stores"
                         : selectedMerchant.shops.find((shop) => shop.shopId === rule.shopId)?.shopName ?? "-";
                       const ruleCategoryName = categoryOptions.find((category) => category.id === rule.categoryId)?.name ?? "-";
 
@@ -2036,7 +2704,7 @@ export function CommissionDashboard({
                         className={isExpandedRule ? "clickableRuleRow selectedRuleRow" : "clickableRuleRow"}
                         onClick={() => setExpandedRuleKey(isExpandedRule ? "" : ruleKey)}
                       >
-                        <td>{rule.scope === "merchant" ? "Main Rule" : "Shop Rule"}</td>
+                        <td>{rule.scope === "merchant" ? "Main Rule" : "Store Rule"}</td>
                         <td>{ruleShopName}</td>
                         <td>{ruleCategoryName}</td>
                         <td>{rule.productName}</td>
@@ -2046,17 +2714,28 @@ export function CommissionDashboard({
                         <td><StatusBadge status={rule.status} /></td>
                         <td>{getRuleNote(rule)}</td>
                         <td className="actionCell">
-                          <button
-                            aria-label={`Show detail for ${rule.productName}`}
-                            className={isExpandedRule ? "previewActionButton active" : "previewActionButton"}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setExpandedRuleKey(isExpandedRule ? "" : ruleKey);
-                            }}
-                          >
-                            {isExpandedRule ? "Hide Detail" : "Detail"}
-                          </button>
+                          <div className="ruleActionMenuWrap" onClick={(event) => event.stopPropagation()}>
+                            <button
+                              aria-label={`Actions for ${rule.productName}`}
+                              className="ruleActionIconButton"
+                              type="button"
+                              onClick={() => setOpenRuleActionMenu(openRuleActionMenu === ruleKey ? "" : ruleKey)}
+                            >
+                              <span className="actionChevron" aria-hidden="true" />
+                            </button>
+                            {openRuleActionMenu === ruleKey && (
+                              <div className="ruleActionMenu">
+                                <button type="button" onClick={() => openProductRuleForEdit(rule)}>
+                                  <span className="menuIcon editIcon" aria-hidden="true" />
+                                  Edit
+                                </button>
+                                <button type="button" onClick={() => duplicateProductRuleAsDraft(rule)}>
+                                  <span className="menuIcon duplicateIcon" aria-hidden="true" />
+                                  Duplicate as Draft
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {isExpandedRule && (
@@ -2067,17 +2746,17 @@ export function CommissionDashboard({
                                 <div>
                                   <span className="eyebrow">Product Rule Detail</span>
                                   <h3>{rule.productName}</h3>
-                                  <p>{rule.scope === "merchant" ? "Applies to every shop under this merchant." : `Applies only to ${ruleShopName}.`}</p>
+                                  <p>{rule.scope === "merchant" ? "Applies to every store under this merchant." : `Applies only to ${ruleShopName}.`}</p>
                                 </div>
                                 <StatusBadge status={rule.status} />
                               </div>
                               <div className="ruleDetailStats">
                                 <div>
                                   <span>Rule Scope</span>
-                                  <strong>{rule.scope === "merchant" ? "Main Rule" : "Shop Rule"}</strong>
+                                  <strong>{rule.scope === "merchant" ? "Main Rule" : "Store Rule"}</strong>
                                 </div>
                                 <div>
-                                  <span>Shop</span>
+                                  <span>Store</span>
                                   <strong>{ruleShopName}</strong>
                                 </div>
                                 <div>
@@ -2124,7 +2803,7 @@ export function CommissionDashboard({
                   <span>Test before saving</span>
                 </div>
                 <label>
-                  Shop
+                  Store
                   <select
                     value={selectedShopId}
                     onChange={(event) => {
@@ -2186,46 +2865,70 @@ export function CommissionDashboard({
           )}
 
           {activeTab === "history" && (
-            <section className="tablePanel nested">
-              <div className="panelHeader">
-                <div>
-                  <h2>Commission History</h2>
-                  <p>Recent rule changes</p>
+            <div className="historyLayout">
+              <section className="historySuggestionPanel">
+                <div className="historySuggestionHeader">
+                  <div>
+                    <span className="eyebrow">Suggested Next Steps</span>
+                    <h2>History Suggestions</h2>
+                    <p>Use recent changes to decide what needs review next.</p>
+                  </div>
+                  <span>{historySuggestions.length} suggestions</span>
                 </div>
-              </div>
-              <div className="tableScroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Changed By</th>
-                      <th>Rule Type</th>
-                      <th>Old Value</th>
-                      <th>New Value</th>
-                      <th>Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>2026-06-25 14:38:57</td>
-                      <td>OPD.09</td>
-                      <td>Monthly Tier</td>
-                      <td>Tier 1: 18%</td>
-                      <td>Tier 1: 20%</td>
-                      <td>Merchant contract update</td>
-                    </tr>
-                    <tr>
-                      <td>2026-06-23 10:50:34</td>
-                      <td>OPD.01</td>
-                      <td>Category Rule</td>
-                      <td>Trout Australi: 20%</td>
-                      <td>Trout Australi: 25%</td>
-                      <td>Premium product margin</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                <div className="historySuggestionGrid">
+                  {historySuggestions.map((suggestion) => (
+                    <article className="historySuggestionCard" key={suggestion.title}>
+                      <strong>{suggestion.title}</strong>
+                      <p>{suggestion.detail}</p>
+                      <button className="secondaryButton" type="button" onClick={suggestion.onClick}>
+                        {suggestion.action}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="tablePanel nested">
+                <div className="panelHeader">
+                  <div>
+                    <h2>Commission History</h2>
+                    <p>Recent rule changes</p>
+                  </div>
+                </div>
+                <div className="tableScroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Changed By</th>
+                        <th>Rule Type</th>
+                        <th>Old Value</th>
+                        <th>New Value</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>2026-06-25 14:38:57</td>
+                        <td>OPD.09</td>
+                        <td>Monthly Tier</td>
+                        <td>Tier 1: 18%</td>
+                        <td>Tier 1: 20%</td>
+                        <td>Merchant contract update</td>
+                      </tr>
+                      <tr>
+                        <td>2026-06-23 10:50:34</td>
+                        <td>OPD.01</td>
+                        <td>Category Rule</td>
+                        <td>Trout Australi: 20%</td>
+                        <td>Trout Australi: 25%</td>
+                        <td>Premium product margin</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
           )}
         </section>
           </>

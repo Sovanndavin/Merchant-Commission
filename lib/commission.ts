@@ -38,7 +38,7 @@ function findHighestTier(tiers: TierRule[], monthlySales: number) {
     .sort((a, b) => b.monthlySalesFrom - a.monthlySalesFrom)[0];
 }
 
-function findShop(merchant: MerchantCommission, shopId: string) {
+function findStore(merchant: MerchantCommission, shopId: string) {
   return merchant.shops.find((shop) => shop.shopId === shopId);
 }
 
@@ -128,7 +128,7 @@ function calculateItemLine(
   if (shopProductRule) {
     return lineFromRule(
       item,
-      `Shop product rule (${formatRuleValue(shopProductRule.valueType, shopProductRule.value)})`,
+      `Store product rule (${formatRuleValue(shopProductRule.valueType, shopProductRule.value)})`,
       shopProductRule.valueType,
       shopProductRule.value
     );
@@ -140,7 +140,7 @@ function calculateItemLine(
   if (shopCategoryRule) {
     return lineFromRule(
       item,
-      `Shop category rule (${formatRuleValue(shopCategoryRule.valueType, shopCategoryRule.value)})`,
+      `Store category rule (${formatRuleValue(shopCategoryRule.valueType, shopCategoryRule.value)})`,
       shopCategoryRule.valueType,
       shopCategoryRule.value
     );
@@ -168,11 +168,11 @@ function calculateItemLine(
   }
 
   if (shopTier) {
-    return lineFromTier(item, shopTier, "Shop");
+    return lineFromTier(item, shopTier, "Store");
   }
 
   if (shop && !shop.useMerchantRule) {
-    return lineFromDefault(item, shop.defaultValueType, shop.defaultValue, "Shop");
+    return lineFromDefault(item, shop.defaultValueType, shop.defaultValue, "Store");
   }
 
   const merchantTier = findHighestTier(merchant.tiers, monthlySales);
@@ -189,7 +189,7 @@ export function calculateCommissionPreview(
   monthlySales: number,
   items: OrderItem[]
 ): CommissionPreview {
-  const shop = findShop(merchant, shopId);
+  const shop = findStore(merchant, shopId);
   const lines = items.map((item) => calculateItemLine(merchant, shop, item, monthlySales));
   const orderTotal = money(items.reduce((total, item) => total + item.amount, 0));
   const redAntCommission = money(lines.reduce((total, line) => total + line.commissionAmount, 0));
