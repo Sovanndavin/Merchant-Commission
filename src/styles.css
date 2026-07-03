@@ -839,6 +839,14 @@ tbody tr:hover {
   padding: 14px 16px;
 }
 
+.merchantSummaryActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   color: var(--accent) !important;
   font-size: 11px !important;
@@ -897,6 +905,11 @@ tbody tr:hover {
 }
 
 .historyLayout {
+  display: grid;
+  gap: 16px;
+}
+
+.storeCommissionLayout {
   display: grid;
   gap: 16px;
 }
@@ -1918,6 +1931,7 @@ tbody tr:hover {
 
   .toolbarRight,
   .profile,
+  .merchantSummaryActions,
   .rulePageActions,
   .commissionPromptOptions,
   .captureBriefList {
@@ -2919,6 +2933,71 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+.commissionSuggestionPanel {
+  background: #f9fbff;
+  border: 1px solid #c8d7ee;
+  border-radius: 10px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.commissionSuggestionHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.commissionSuggestionHeader span,
+.commissionSuggestionGrid span,
+.commissionRowGuide span {
+  color: #667085;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.commissionSuggestionHeader strong {
+  color: #17324d;
+  display: block;
+  font-size: 15px;
+  margin-top: 3px;
+}
+
+.commissionSuggestionGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.commissionSuggestionGrid div {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.commissionSuggestionGrid strong {
+  color: #111827;
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.commissionRowGuide {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(420px, 0.78fr) 120px 36px;
+  padding: 0 4px;
+}
+
+.commissionRowGuide.tierGuide {
+  grid-template-columns: 120px minmax(240px, 1fr) 120px 36px;
+}
+
 .commissionWarningList {
   background: #fff7ed;
   border: 1px solid #fed7aa;
@@ -3002,14 +3081,14 @@ tbody tr:hover {
   align-items: center;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(280px, 1fr) 88px 32px;
+  grid-template-columns: minmax(420px, 0.78fr) 120px 36px;
 }
 
 .tierCommissionRow {
   align-items: center;
   display: grid;
   gap: 8px;
-  grid-template-columns: 106px minmax(160px, 1fr) 88px 32px;
+  grid-template-columns: 120px minmax(240px, 1fr) 120px 36px;
 }
 
 .periodDateControl,
@@ -3084,6 +3163,15 @@ tbody tr:hover {
   color: #1f2356;
   min-height: 42px;
   outline: 0;
+}
+
+.periodDateControl input:disabled,
+.periodRateControl input:disabled,
+.tierAmountControl input:disabled {
+  background: #fbfcfe;
+  color: #1f2356;
+  cursor: default;
+  opacity: 1;
 }
 
 .periodDateControl input {
@@ -3166,6 +3254,13 @@ tbody tr:hover {
   background: #fff1f2;
   border-color: #ff4d57;
   color: #ff4d57;
+}
+
+.rateActionButton:disabled {
+  background: #f8fafc;
+  border-color: #d0d5dd;
+  color: #98a2b3;
+  cursor: not-allowed;
 }
 
 .fixedRateRow {
@@ -3542,12 +3637,29 @@ tbody tr:hover {
 
   .commissionPeriodRow {
     align-items: stretch;
-    grid-template-columns: 1fr 88px 32px;
+    grid-template-columns: 1fr 120px 36px;
   }
 
   .tierCommissionRow {
     align-items: stretch;
-    grid-template-columns: 106px minmax(0, 1fr) 88px 32px;
+    grid-template-columns: 120px minmax(0, 1fr) 120px 36px;
+  }
+
+  .commissionSuggestionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .commissionSuggestionHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .commissionRowGuide {
+    grid-template-columns: 1fr 120px 36px;
+  }
+
+  .commissionRowGuide.tierGuide {
+    grid-template-columns: 120px minmax(0, 1fr) 120px 36px;
   }
 
   .mediaGrid {
@@ -3572,6 +3684,10 @@ tbody tr:hover {
 @media (max-width: 520px) {
   .commissionPeriodRow {
     grid-template-columns: 1fr;
+  }
+
+  .commissionRowGuide {
+    display: none;
   }
 
   .commissionLogicSummary {
